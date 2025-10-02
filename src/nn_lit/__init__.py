@@ -158,39 +158,47 @@ class BaseModel(lightning.pytorch.LightningModule, ABC):
                             job_type='train')
 
                     if not uses_wandb:
-                        # by default, log to tensorboard
-                        from lightning.pytorch.loggers import TensorBoardLogger
+                        supports_tensorboard = True
+                        try:
+                            import tensorboard
+                        except ModuleNotFoundError:
+                            supports_tensorboard = False
+                            import warnings
+                            warnings.warn('`tensorboard` package is not available.')
 
-                        from util import next_dir
-                        log_root_dir = os.path.join(result_dir, 'tensorboard')
-                        log_dir = next_dir(log_root_dir, lambda run: f'Run {run}')
+                        if supports_tensorboard:
+                            from lightning.pytorch.loggers import TensorBoardLogger
 
-                        print(f'Tensorboard log-directory:\n{os.path.normpath(log_root_dir)}')
+                            from util import next_dir
+                            log_root_dir = os.path.join(result_dir, 'tensorboard')
+                            log_dir = next_dir(log_root_dir, lambda run: f'Run {run}')
 
-                        logger = TensorBoardLogger(save_dir=log_dir)
-                        params['logger'] = logger
+                            print(f'Tensorboard log-directory:\n{os.path.normpath(log_root_dir)}')
 
-                        global _tensorboard_launched
-                        if not _tensorboard_launched:
-                            try:
-                                import tensorboard.program as tb
+                            logger = TensorBoardLogger(save_dir=log_dir)
+                            params['logger'] = logger
 
-                                # If installed, we launch tensorboard itself and return the url
-                                tensorboard = tb.TensorBoard()
-                                tensorboard.configure((None, '--logdir', log_root_dir))
+                            global _tensorboard_launched
+                            if not _tensorboard_launched:
                                 try:
-                                    url = tensorboard.launch()
-                                    _tensorboard_launched = True
-                                except tb.TensorBoardServerException as ex:
+                                    import tensorboard.program as tb
+
+                                    # If installed, we launch tensorboard itself and return the url
+                                    tensorboard = tb.TensorBoard()
+                                    tensorboard.configure((None, '--logdir', log_root_dir))
+                                    try:
+                                        url = tensorboard.launch()
+                                        _tensorboard_launched = True
+                                    except tb.TensorBoardServerException as ex:
+                                        import warnings
+                                        warnings.warn(str(ex))
+                                        url = None
+                                        pass
+
+                                    print(f'Tensorboard url: {url}')
+                                except ModuleNotFoundError as ex:
                                     import warnings
                                     warnings.warn(str(ex))
-                                    url = None
-                                    pass
-
-                                print(f'Tensorboard url: {url}')
-                            except ModuleNotFoundError as ex:
-                                import warnings
-                                warnings.warn(str(ex))
 
             callbacks: list[
                 Union[pl.Callback, Callable[[ModelInitializationParameters], pl.Callback]]] = default_callbacks
@@ -324,7 +332,7 @@ class BaseModel(lightning.pytorch.LightningModule, ABC):
         for inp, lbl in test_loader:
             if isinstance(inp, torch.Tensor):
                 inp = (inp,)
-                
+
             pred = self.predict(*(x.to(device=self.device) for x in inp))
             if len(pred) != len(lbl):
                 raise RuntimeError('Prediction and label must have the same length.')

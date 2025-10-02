@@ -187,7 +187,7 @@ def setup() -> None:
     print('Downloading and installing the required project packages from \'requirements.txt\'... '
           'This may take a while.')
 
-    run('pip', 'install', '-r', requirements_txt, reruns=1)
+    run('pip', 'install', '-r', requirements_txt)
 
     print('Done installing requirements.')
 
@@ -217,6 +217,38 @@ def setup() -> None:
         install_medsam()
 
         print('Done installing \'medsam\' package.')
+
+    has_wandb = True
+    has_tensorboard = True
+
+    try:
+        import wandb
+        print('Found wandb.')
+    except ModuleNotFoundError:
+        has_wandb = False
+
+    if not has_wandb:
+        try:
+            import tensorboard
+            print('Found tensorboard.')
+        except ModuleNotFoundError:
+            has_tensorboard = False
+
+    if not has_wandb and not has_tensorboard:
+        wandb_or_tensorboard = input_sanitized(
+            'Would you like to report training progress using tensorboard or wandb? (NO, tensorboard, wandb)',
+            lambda s: s in ('', 'tensorboard', 'wandb', 'n', 'no'),
+            transform=lambda s: s.lower(),
+            default_value='')
+
+        if wandb_or_tensorboard == 'wandb':
+            run('pip', 'install', 'wandb')
+            print('You will be asked for your wandb credentials if you are not logged in, yet.')
+            run('wandb', 'login')
+        elif wandb_or_tensorboard == 'tensorboard':
+            run('pip', 'install', 'tensorboard')
+
+    return None
 
 
 def install_medsam() -> None:

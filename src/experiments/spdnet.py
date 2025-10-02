@@ -26,6 +26,8 @@ class FitSPDNetResult(NamedTuple):
 
 def fit_spdnet(
         model_directory: str,
+        logging_directory: str,
+        project_name: str,
         dataset: medmnist_dataset.MedMNIST2D,
         features: str,
         training_data: Dataset,
@@ -77,8 +79,13 @@ def fit_spdnet(
     best_test = None
     best_prediction = None
 
+    try:
+        import wandb
+    except ModuleNotFoundError:
+        wandb = None
+
     for i in range(1, repeats + 1):
-        result_dir = os.path.abspath(os.path.join(model_directory, f'{dataset.dataset_name}/{features}/{i}'))
+        result_dir = os.path.abspath(os.path.join(model_directory, dataset.dataset_name, features, str(i)))
 
         print(f'Attempt {i}: {result_dir}')
 
@@ -105,6 +112,17 @@ def fit_spdnet(
             backbone = BasicSPDNet(feature_count,
                                    1 if class_count == 2 else class_count,
                                    device=device)
+
+            if wandb is not None:
+                wandb_dir = os.path.join(logging_directory, 'wandb', dataset.dataset_name, features, str(i))
+                os.makedirs(wandb_dir, exist_ok=True)
+                run = wandb.init(dir=wandb_dir,
+                                 project=project_name,
+                                 name='-'.join([project_name, dataset.dataset_name, features, f'run {i}']),
+                                 group='-'.join([project_name, dataset.dataset_name, features]))
+                run.__enter__()
+            else:
+                run = None
 
             # Loading failed. We train a new model and retrieve its metrics instead
             spdnet = spdnet_type(result_dir,
@@ -133,15 +151,24 @@ def fit_spdnet(
             device = torch.empty(()).device
             spdnet.to(device=device)
 
-            # fit on train/val data and predict on test set
-            metrics = dict(spdnet.fit(training_data, validation_data, test_data))
+            try:
+                # fit on train/val data and predict on test set
+                metrics = dict(spdnet.fit(training_data, validation_data, test_data))
 
-            # we keep the validation metrics from the last epoch (we'll use them below)
-            val_metrics = spdnet.last_metrics('val', strip_mode=False)
+                # we keep the validation metrics from the last epoch (we'll use them below)
+                val_metrics = spdnet.last_metrics('val', strip_mode=False)
 
-            assert metrics.keys().isdisjoint(val_metrics.keys())
+                assert metrics.keys().isdisjoint(val_metrics.keys())
 
-            prediction = spdnet.predict_test(test_data)
+                prediction = spdnet.predict_test(test_data)
+
+                if run is not None:
+                    run.__exit__(None, None, None)
+            except BaseException as ex:
+                if run is not None:
+                    run.__exit__(type(ex), ex, ex.__traceback__)
+                raise
+
             metrics.update(val_metrics)
 
             # We've finished computing our metrics, save them so that we can reuse them the next time.

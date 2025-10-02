@@ -3,9 +3,9 @@ from typing import Iterable, Callable, TypeVar, Sequence, Any, cast
 
 import config
 
-if config.load_user_config() is None:
-    import setup
+import setup
 
+if config.load_user_config() is None:
     setup.setup()
 
 user_config = config.load_user_config()
@@ -26,6 +26,7 @@ while True:
         from torch.utils.data import Dataset
         import medmnist as medmnist_data
         import segment_anything
+
         break
     except (ModuleNotFoundError, ImportError) as ex:
         if not is_first:
@@ -33,13 +34,12 @@ while True:
                   '\n' +
                   str(ex))
             from util.setuputil import press_enter_to_exit
+
             press_enter_to_exit()
 
         is_first = False
 
-        import setup
         setup.setup()
-
 
 import datetime
 
@@ -58,13 +58,11 @@ def medmnist_dir() -> str:
 
 run_date = datetime.datetime.now()
 
-
 # do some required project-wise general initializations
 if torch.cuda.is_available():
     torch.set_default_device('cuda')
 
 os.environ['GEOMSTATS_BACKEND'] = 'pytorch'
-
 
 _T = TypeVar('_T')
 
@@ -155,10 +153,7 @@ def add_report(dataset: medmnist_dataset.MedMNIST2D,
 
     technique_reports.append(values)
 
-    result_dir = user_config.result_dir
-
-    if debug:
-        result_dir = os.path.join(result_dir, 'debug')
+    result_dir = make_debug_dir(user_config.result_dir, debug)
 
     os.makedirs(result_dir, exist_ok=True)
 
@@ -274,7 +269,7 @@ def handle_spdnet_handcrafted(ds: medmnist_dataset.MedMNIST2D,
                               cache: bool = True,
                               debug: bool = False) -> None:
     print(f'SPDNet, handcrafted on dataset: {ds.dataset_name}')
-    cache_dir = get_cache_dir(ds, 'handcrafted') if cache else None
+    cache_dir = make_debug_dir(get_cache_dir(ds, 'handcrafted'), debug) if cache else None
 
     print('  Preparing dataset...')
 
@@ -293,7 +288,9 @@ def handle_spdnet_handcrafted(ds: medmnist_dataset.MedMNIST2D,
         debug=debug)
 
     print('  Fitting and evaluating...')
-    metrics, predictions = fit_spdnet(user_config.model_dir,
+    metrics, predictions = fit_spdnet(make_debug_dir(user_config.model_dir, debug),
+                                      make_debug_dir(user_config.result_dir, debug),
+                                      setup.project_name,
                                       ds, 'handcrafted', training_set, validation_set, test_set,
                                       class_proportions=training_set_label_proportions(medmnist_dir(), ds),
                                       feature_count=spdnet_hc_feature_count(ds.n_channels),
@@ -303,13 +300,22 @@ def handle_spdnet_handcrafted(ds: medmnist_dataset.MedMNIST2D,
     add_report(ds, 'SPDNet', 'Handcrafted', predictions.prediction, predictions.targets, debug=debug)
 
 
+def make_debug_dir(dir: str, debug: bool, create: bool = True) -> str:
+    if debug:
+        dir = os.path.join(dir, 'debug')
+        if create:
+            os.makedirs(dir, exist_ok=True)
+
+    return dir
+
+
 def handle_spdnet_gve(ds: medmnist_dataset.MedMNIST2D,
                       cache: bool = True,
                       debug: bool = False) -> None:
     from common.gve import PretrainedFeatures
     print(f'SPDNet, general vision encoder features on dataset: {ds.dataset_name}')
     for gve in ('dino', 'medsam'):
-        cache_dir = get_cache_dir(ds, gve) if cache else None
+        cache_dir = make_debug_dir(get_cache_dir(ds, gve), debug) if cache else None
 
         print(f'  Fetching/Loading GVE model ({gve})...')
         features = PretrainedFeatures(user_config.model_dir, gve)
@@ -331,7 +337,9 @@ def handle_spdnet_gve(ds: medmnist_dataset.MedMNIST2D,
             debug=debug)
 
         print('  Fitting and evaluating...')
-        metrics, predictions = fit_spdnet(user_config.model_dir,
+        metrics, predictions = fit_spdnet(make_debug_dir(user_config.model_dir, debug),
+                                          make_debug_dir(user_config.result_dir, debug),
+                                          setup.project_name,
                                           ds, gve, training_set, validation_set, test_set,
                                           class_proportions=training_set_label_proportions(medmnist_dir(), ds),
                                           feature_count=features.feature_count,
@@ -367,8 +375,8 @@ def main(print_results: bool = True, debug: bool = False) -> None:
         sys.stderr.write('WARNING: Debug mode.')
 
     for ds in run_datasets:
-        handle_traditional_handcrafted(ds, debug=debug)
-        handle_traditional_gve(ds, debug=debug)
+        # handle_traditional_handcrafted(ds, debug=debug)
+        # handle_traditional_gve(ds, debug=debug)
 
         handle_spdnet_handcrafted(ds, debug=debug)
         handle_spdnet_gve(ds, debug=debug)
