@@ -1,0 +1,10 @@
+typing_extensions~=4.8.0
+torchmetrics~=1.4.3
+numpy~=1.25.2
+pillow~=10.3.0
+pandas~=2.0.1
+medmnist~=3.0.1
+scikit-learn~=1.5.1
+lightning~=2.4.0
+geomstats~=2.7.0
+tqdm~=4.66.3
