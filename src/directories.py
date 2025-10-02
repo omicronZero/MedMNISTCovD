@@ -13,3 +13,10 @@ def abspath(p: str) -> str:
     p = os.path.expandvars(p)
 
     return os.path.abspath(p)
+
+
+def project_path(p: str) -> str:
+    if os.path.isabs(p):
+        return p
+
+    return os.path.join(project_root, p)

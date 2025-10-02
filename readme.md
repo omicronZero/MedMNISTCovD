@@ -8,7 +8,7 @@ since we cache the covariance descriptors for every image (we do not delete the 
 reuse them, especially for the epochs of SPDNet). The images themselves are not cached.
 Note that the evaluation and training procedures are time-consuming.
 
-To properly work, we need write access to the `config.json` file in the `src` directory if you are on a new computer.
+To properly work, we need write access to the `config.json` file in the project's root directory if you are on a new computer.
 The following directories are needed:
 * __Dataset directory__: <br/> The root directory of the datasets. We look for a directory `medmnist` in that directory. If a 
   medmnist dataset is not available yet, we'll download it as soon as needed.
@@ -20,7 +20,7 @@ The following directories are needed:
 The setup involves the following steps:
 
 1. Install Python 3.11 or later ([Python Downloads](https://www.python.org/downloads/))
-2. Create a new pip-environment (conda should also work)
+2. Create a new pip-environment (conda should also work if pip is installed)
 3. Run `main.py` and follow the instructions. It should automatically install all requirements. In case it fails, 
    please use the manual setup below
 

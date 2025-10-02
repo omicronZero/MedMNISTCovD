@@ -28,7 +28,8 @@ def get_default_config_path() -> str:
     path = default_config_file
 
     if not os.path.isabs(path):
-        path = os.path.abspath(path)
+        from directories import project_path
+        path = project_path(path)
 
     return path
 

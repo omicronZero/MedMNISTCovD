@@ -1,19 +1,41 @@
+from subprocess import CompletedProcess
+
 from util.setuputil import yesno, press_enter_to_exit, input_sanitized
 from directories import abspath, python_dir, project_root
 import sys
 import os
-from typing import Any
+from typing import Any, overload, Literal, Union
 import config
 
 project_name = 'MedMNISTCovD'
 
+torch_version = (2, 2, 1)
+torchvision_version = (0, 17, 1)
 
-def run(name: str, *args: Any, check: bool = True, reruns: int = 0) -> None:
+
+@overload
+def run(name: str, *args: Any, check: bool = True, reruns: int = 0, text: Literal[True] = False) \
+        -> CompletedProcess[str]:
+    ...
+
+
+@overload
+def run(name: str, *args: Any, check: bool = True, reruns: int = 0, text: Literal[False] = False) \
+        -> CompletedProcess[bytes]:
+    ...
+
+
+@overload
+def run(name: str, *args: Any, check: bool = True, reruns: int = 0, text: bool = False) \
+        -> CompletedProcess[Union[str, bytes]]:
+    ...
+
+
+def run(name: str, *args: Any, check: bool = True, reruns: int = 0, text: bool = False) -> CompletedProcess[str]:
     import subprocess
     while True:
         try:
-            subprocess.run([os.path.join(python_dir, name), *args], check=check)
-            break
+            return subprocess.run([os.path.join(python_dir, name), *args], check=check, text=text)
         except subprocess.CalledProcessError:
             if reruns > 0:
                 reruns -= 1
@@ -37,38 +59,6 @@ def setup() -> None:
     if major != 3 or minor < 11:
         print('Python version must be 3.11 or later.')
         return press_enter_to_exit()
-
-    print('Sanitizing environment...')
-
-    try:
-        import torch
-
-        version = torch.__version__
-
-        major, minor, rev = map(int, version.split('+')[0].split('.'))
-
-        if (major, minor, rev) != (2, 5, 1):
-            if not yesno(
-                    'Existing torch installation found in environment, but the version is different to the expected '
-                    f'version 2.5.1 (found: {version}). Continue?'):
-                press_enter_to_exit()
-                return
-
-    except ModuleNotFoundError:
-        torch = None
-
-    print()
-
-    print(
-        'Please make sure that the following path is the one you want to install the required dependencies to. Be '
-        'sure that it is a Python environment. The \'requirements.txt\' '
-        'required by the application will be installed to this directory:')
-    print('    ', python_dir)
-
-    if not yesno('Is this path the path of the environment you want to use?'):
-        print('Please restart the setup in the environment you want to use.')
-        press_enter_to_exit()
-        return
 
     used_dirs = []
 
@@ -139,6 +129,36 @@ def setup() -> None:
 
         config.save_user_config(config.Config(cache_dir, dataset_dir, result_dir, model_dir))
 
+    print('Sanitizing environment...')
+
+    try:
+        import torch
+
+        version = torch.__version__
+
+        major, minor, rev = map(int, version.split('+')[0].split('.'))
+
+        if (major, minor, rev) != torch_version:
+            if not yesno(
+                    'Existing torch installation found in environment, but the version is different to the expected '
+                    f'version 2.5.1 (found: {version}). Continue?'):
+                print('Please select a new environment or uninstall the currently installed version manually.')
+                return press_enter_to_exit()
+    except ModuleNotFoundError:
+        torch = None
+
+    print()
+
+    print(
+        'Please make sure that the following path is the one you want to install the required dependencies to. Be '
+        'sure that it is a Python environment. The packages required by the application will be installed to this '
+        'directory:')
+    print('    ', python_dir)
+
+    if not yesno('Is this path the path of the environment you want to use?'):
+        print('Please restart the setup in the environment you want to use.')
+        return press_enter_to_exit()
+
     import platform
     operating_system = platform.system()
 
@@ -146,19 +166,30 @@ def setup() -> None:
         print('Downloading and installing PyTorch... Please be patient, this will take time.')
 
         if operating_system in ('Windows', 'Linux'):
-            run('pip', 'install', 'torch', 'torchvision', 'torchaudio', '--index-url',
-                'https://download.pytorch.org/whl/cu121')
+            run('pip', 'install', '--no-dependencies',
+                f'torch=={".".join(map(str, torch_version))}',
+                f'torchvision=={".".join(map(str, torchvision_version))}',
+                '--index-url', 'https://download.pytorch.org/whl/cu121')
         elif operating_system == 'Darwin':
             if not yesno('CUDA is unavailable on Mac. Should the default version be installed?'):
                 print('Please install PyTorch manually or use another operating system.')
                 return press_enter_to_exit()
 
-            run('pip', 'install', 'torch', 'torchvision', 'torchaudio')
+            run('pip', 'install', '--no-dependencies', 'torch', 'torchvision')
         else:
             print(
                 f'Unsupported platform: {operating_system} {platform.release()}. Please install PyTorch manually '
                 f'before continuing.')
             return press_enter_to_exit()
+
+    requirements_txt = os.path.join(project_root, "requirements.txt")
+
+    print('Downloading and installing the required project packages from \'requirements.txt\'... '
+          'This may take a while.')
+
+    run('pip', 'install', '-r', requirements_txt, reruns=1)
+
+    print('Done installing requirements.')
 
     print('Sanitizing PyTorch installation. This may take a moment.')
 
@@ -171,14 +202,7 @@ def setup() -> None:
             run('nvidia-smi', check=False)
 
         if not yesno('Continue?'):
-            return
-
-    print('Downloading and installing the required project packages from \'requirements.txt\'... '
-          'This may take a while.')
-
-    run('pip', 'install', '-r', os.path.join(project_root, "requirements.txt"), reruns=1)
-
-    print('Done installing requirements.')
+            return press_enter_to_exit()
 
     print('Checking for `segment_anything`-package via medsam...')
 
@@ -190,11 +214,15 @@ def setup() -> None:
     except ModuleNotFoundError:
         print('`segment_anything` not found. Installing from the `medsam`-repository. This will take a while.')
 
-        from pretrained import install_medsam
-
         install_medsam()
 
         print('Done installing \'medsam\' package.')
+
+
+def install_medsam() -> None:
+    from util.packages import install
+
+    install('git+https://github.com/bowang-lab/MedSAM.git@a7b77769ff12035414d0aaf3bc87230b7c10f922')
 
 
 if __name__ == '__main__':

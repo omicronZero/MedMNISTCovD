@@ -47,12 +47,6 @@ def load_hub_model(
         torch.hub.set_dir(orig_dir)
 
 
-def install_medsam() -> None:
-    from util.packages import install
-
-    install('git+https://github.com/bowang-lab/MedSAM.git')
-
-
 class FeatureBackboneInvoker(ABC):
     @abstractmethod
     def invoker(self) -> Callable[[torch.Tensor], torch.Tensor]:

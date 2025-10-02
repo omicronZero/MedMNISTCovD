@@ -45,8 +45,8 @@ def input_sanitized(prompt: str,
             if sanitize(q):
                 break
 
-        if not yesno(f'Setting to value\n    {q}\nOk?'):
-            continue
+        # if not yesno(f'Setting to value\n    {q}\nOk?'):
+        #     continue
 
         if commit_action is None or commit_action(q):
             break

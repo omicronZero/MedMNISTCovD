@@ -3,36 +3,42 @@ from typing import Iterable, Callable, TypeVar, Sequence, Any, cast
 
 import config
 
-user_config = config.load_user_config()
-imports_missing = False
-
-try:
-    import numpy as np
-    import torch
-    import torch.utils.data
-    from torch.utils.data import Dataset
-    import medmnist as medmnist_data
-except ModuleNotFoundError:
-    imports_missing = True
-
-if user_config is None or imports_missing:
+if config.load_user_config() is None:
     import setup
 
     setup.setup()
 
-    import numpy as np
-    import torch
-    import torch.utils.data
-    from torch.utils.data import Dataset
-    import medmnist as medmnist_data
-    user_config = config.load_user_config()
+user_config = config.load_user_config()
 
-    if user_config is None:
-        from util.setuputil import press_enter_to_exit
+if user_config is None:
+    from util.setuputil import press_enter_to_exit
 
-        print('Something went wrong. Restart the application or file a bug report if you think there '
-              'is an issue.')
-        press_enter_to_exit()
+    print('Something went wrong. Restart the application or file a bug report if you think there is an issue.')
+    press_enter_to_exit()
+
+is_first = True
+
+while True:
+    try:
+        import numpy as np
+        import torch
+        import torch.utils.data
+        from torch.utils.data import Dataset
+        import medmnist as medmnist_data
+        import segment_anything
+        break
+    except (ModuleNotFoundError, ImportError) as ex:
+        if not is_first:
+            print('The setup failed. This may either be due to an error or due to an error in one of the dependencies:'
+                  '\n' +
+                  str(ex))
+            from util.setuputil import press_enter_to_exit
+            press_enter_to_exit()
+
+        is_first = False
+
+        import setup
+        setup.setup()
 
 
 import datetime
@@ -92,7 +98,7 @@ def remark(text: str) -> None:
         _remark_file = open(os.path.join(user_config.result_dir, 'REMARK.txt'), 'a')
 
         _remark_file.write('\n')
-        _remark_file.write(f'[{run_date.strftime("%Y-%m-%d %H-%M%-%S")}]:\n')
+        _remark_file.write(f'[{run_date.strftime("%Y-%m-%d %H-%M-%S")}]:\n')
 
     text = text + '\n'
     _remark_file.write(text)
